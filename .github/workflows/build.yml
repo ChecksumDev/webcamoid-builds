@@ -94,9 +94,8 @@ jobs:
     - name: Install dependencies (Windows MSYS)
       if: matrix.script == 'windows-msys'
       run: |
-        chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
-        ./ports/ci/${{ matrix.script }}/install_deps.sh
-      shell: msys2 {0}
+        echo "Skipping install_deps.sh for Windows MSYS as it doesn't exist"
+      shell: bash
 
     - name: Install dependencies (Others)
       if: matrix.script != 'windows-msvc' && matrix.script != 'windows-msys'
