@@ -1,0 +1,181 @@
+name: Webcamoid CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '0 0 * * *'
+
+env:
+  QTVER_ANDROID: 6.7.2
+  SDKVER: 11076708
+  NDKVER: r27
+  ANDROID_BUILD_TOOLS_VERSION: 34.0.0
+  ANDROID_MINIMUM_PLATFORM: 24
+  ANDROID_TARGET_PLATFORM: 34
+  NJOBS: 4
+  QTIFWVER: 4.8.0
+  APPIMAGEVER: continuous
+  NSIS_VERSION: 3.10
+  HOMEBREW_PATH: /usr/local
+  FFMPEG_VERSION: 7.0.1
+  GSTREAMER_VERSION: 1.24.5
+  CMAKE_GENERATOR: Visual Studio 17 2022
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Android
+          - os: ubuntu-latest
+            name: Android
+            target_arch: armeabi-v7a:arm64-v8a:x86:x86_64
+            compiler: gcc
+            script: android-basic
+          # Flatpak
+          - os: ubuntu-latest
+            name: Flatpak
+            script: flatpak
+          # Linux distributions
+          - os: ubuntu-latest
+            name: Arch Linux
+            dockerimg: archlinux:latest
+            compiler: gcc
+            script: linux-arch
+          - os: ubuntu-latest
+            name: Debian
+            dockerimg: debian:testing
+            compiler: gcc
+            script: linux-debian
+          - os: ubuntu-latest
+            name: Fedora
+            dockerimg: fedora:rawhide
+            compiler: gcc
+            script: linux-fedora
+          - os: ubuntu-latest
+            name: Mageia
+            dockerimg: mageia:cauldron
+            compiler: gcc
+            script: linux-mageia
+          - os: ubuntu-latest
+            name: OpenSUSE
+            dockerimg: opensuse/tumbleweed
+            compiler: gcc
+            script: linux-opensuse
+          - os: ubuntu-latest
+            name: Ubuntu
+            dockerimg: amd64/ubuntu:lunar
+            compiler: gcc
+            script: linux-ubuntu
+          # Linux MinGW
+          - os: ubuntu-latest
+            name: Linux MinGW
+            dockerimg: archlinux:latest
+            target_arch: x86_64
+            compiler: gcc
+            script: linux-mingw
+          # macOS
+          - os: macos-14
+            name: macOS
+            script: mac
+          # Windows
+          - os: windows-latest
+            name: Windows MSVC
+            script: windows-msvc
+          - os: windows-latest
+            name: Windows MSYS
+            target_arch: x86_64
+            compiler: gcc
+            script: windows-msys
+
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Set up MSYS2 (Windows MSYS only)
+      uses: msys2/setup-msys2@v2
+      if: matrix.script == 'windows-msys'
+      with:
+        update: true
+        install: >-
+          ccache
+          clang
+          cmake
+          git
+          make
+          pkgconf
+          python3
+          mingw-w64-${{ matrix.target_arch }}-binutils
+          mingw-w64-${{ matrix.target_arch }}-ccache
+          mingw-w64-${{ matrix.target_arch }}-clang
+          mingw-w64-${{ matrix.target_arch }}-cmake
+          mingw-w64-${{ matrix.target_arch }}-ffmpeg
+          mingw-w64-${{ matrix.target_arch }}-pkgconf
+          mingw-w64-${{ matrix.target_arch }}-qt6
+          mingw-w64-${{ matrix.target_arch }}-vlc
+
+    - name: Install dependencies
+      run: |
+        chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
+        ./ports/ci/${{ matrix.script }}/install_deps.sh
+      shell: ${{ matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash' }}
+
+    - name: Build
+      run: |
+        chmod +x ports/ci/${{ matrix.script }}/build.sh
+        ./ports/ci/${{ matrix.script }}/build.sh
+      shell: ${{ matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash' }}
+
+    - name: Deploy
+      run: |
+        chmod +x ports/ci/${{ matrix.script }}/deploy.sh
+        ./ports/ci/${{ matrix.script }}/deploy.sh
+      shell: ${{ matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash' }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: webcamoid-${{ matrix.name }}
+        path: webcamoid-packages/**/*
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v2
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        files: ./**/*
+        draft: false
+        prerelease: false
+
+  daily-release:
+    needs: build
+    if: github.event_name == 'schedule' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/download-artifact@v2
+    - name: Create Daily Release
+      id: create_daily_release
+      uses: softprops/action-gh-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
+      with:
+        files: ./**/*
+        name: Daily Build
+        tag_name: daily-build
+        body: |
+          This is an automated daily build of the Webcamoid project.
+          Built from commit: ${{ github.sha }}
+          
+          Note: This build is automatically updated daily. The commit information in the tag may not reflect the exact state of this build.
+        prerelease: true
+        repository: webcamoid/WebcamoidPrivate
