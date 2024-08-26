@@ -28,66 +28,60 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Android
+          # Ubuntu x86_64
           - os: ubuntu-latest
-            name: Android
-            target_arch: armeabi-v7a:arm64-v8a:x86:x86_64
-            compiler: gcc
-            script: android-basic
-          # Flatpak
-          - os: ubuntu-latest
-            name: Flatpak
-            script: flatpak
-          # Linux distributions
-          - os: ubuntu-latest
-            name: Arch Linux
-            dockerimg: archlinux:latest
-            compiler: gcc
-            script: linux-arch
-          - os: ubuntu-latest
-            name: Debian
-            dockerimg: debian:testing
-            compiler: gcc
-            script: linux-debian
-          - os: ubuntu-latest
-            name: Fedora
-            dockerimg: fedora:rawhide
-            compiler: gcc
-            script: linux-fedora
-          - os: ubuntu-latest
-            name: Mageia
-            dockerimg: mageia:cauldron
-            compiler: gcc
-            script: linux-mageia
-          - os: ubuntu-latest
-            name: OpenSUSE
-            dockerimg: opensuse/tumbleweed
-            compiler: gcc
-            script: linux-opensuse
-          - os: ubuntu-latest
-            name: Ubuntu
+            name: Ubuntu x86_64
             dockerimg: amd64/ubuntu:lunar
             compiler: gcc
+            upload: 1
             script: linux-ubuntu
-          # Linux MinGW
           - os: ubuntu-latest
-            name: Linux MinGW
-            dockerimg: archlinux:latest
-            target_arch: x86_64
+            name: Ubuntu x86_64
+            dockerimg: amd64/ubuntu:lunar
+            compiler: clang
+            upload: 0
+            script: linux-ubuntu
+          - os: ubuntu-latest
+            name: Ubuntu x86_64
+            dockerimg: amd64/ubuntu:rolling
             compiler: gcc
-            script: linux-mingw
+            upload: 0
+            script: linux-ubuntu
+          - os: ubuntu-latest
+            name: Ubuntu x86_64
+            dockerimg: amd64/ubuntu:rolling
+            compiler: clang
+            upload: 0
+            script: linux-ubuntu
           # macOS
           - os: macos-14
             name: macOS
+            upload: 1
             script: mac
-          # Windows
+          - os: macos-13
+            name: macOS
+            upload: 0
+            script: mac
+          - os: macos-12
+            name: macOS
+            upload: 1
+            script: mac
+          # Windows MSVC
           - os: windows-latest
             name: Windows MSVC
             script: windows-msvc
+          # Windows MSYS
           - os: windows-latest
             name: Windows MSYS
             target_arch: x86_64
             compiler: gcc
+            upload: 1
+            script: windows-msys
+          - os: windows-latest
+            name: Windows MSYS
+            target_arch: x86_64
+            compiler: clang
+            upload: 0
             script: windows-msys
 
     runs-on: ${{ matrix.os }}
@@ -118,22 +112,43 @@ jobs:
           mingw-w64-${{ matrix.target_arch }}-vlc
 
     - name: Install dependencies
-      shell: bash
       run: |
-        chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
-        ./ports/ci/${{ matrix.script }}/install_deps.sh
+        if [ "${{ matrix.script }}" = "windows-msvc" ]; then
+          ./ports/ci/${{ matrix.script }}/install_deps.bat
+        elif [ "${{ matrix.script }}" = "windows-msys" ]; then
+          chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
+          ./ports/ci/${{ matrix.script }}/install_deps.sh
+        else
+          chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
+          ./ports/ci/${{ matrix.script }}/install_deps.sh
+        fi
+      shell: ${{ matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash' }}
 
     - name: Build
-      shell: bash
       run: |
-        chmod +x ports/ci/${{ matrix.script }}/build.sh
-        ./ports/ci/${{ matrix.script }}/build.sh
+        if [ "${{ matrix.script }}" = "windows-msvc" ]; then
+          ./ports/ci/${{ matrix.script }}/build.bat
+        elif [ "${{ matrix.script }}" = "windows-msys" ]; then
+          chmod +x ports/ci/${{ matrix.script }}/build.sh
+          ./ports/ci/${{ matrix.script }}/build.sh
+        else
+          chmod +x ports/ci/${{ matrix.script }}/build.sh
+          ./ports/ci/${{ matrix.script }}/build.sh
+        fi
+      shell: ${{ matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash' }}
 
     - name: Deploy
-      shell: bash
       run: |
-        chmod +x ports/ci/${{ matrix.script }}/deploy.sh
-        ./ports/ci/${{ matrix.script }}/deploy.sh
+        if [ "${{ matrix.script }}" = "windows-msvc" ]; then
+          ./ports/ci/${{ matrix.script }}/deploy.bat
+        elif [ "${{ matrix.script }}" = "windows-msys" ]; then
+          chmod +x ports/ci/${{ matrix.script }}/deploy.sh
+          ./ports/ci/${{ matrix.script }}/deploy.sh
+        else
+          chmod +x ports/ci/${{ matrix.script }}/deploy.sh
+          ./ports/ci/${{ matrix.script }}/deploy.sh
+        fi
+      shell: ${{ matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash' }}
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
@@ -141,41 +156,109 @@ jobs:
         name: webcamoid-${{ matrix.name }}
         path: webcamoid-packages/**/*
 
-  release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/')
+  ubuntu-multiarch:
+    name: Ubuntu Multiarch
     runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 10
+      fail-fast: false
+      matrix:
+       include:
+         - distro: ubuntu_latest
+           architecture: armv7
+           compiler: gcc
+           upload: 1
+         - distro: ubuntu_latest
+           architecture: armv7
+           compiler: clang
+           upload: 0
+         - distro: ubuntu_latest
+           architecture: aarch64
+           compiler: gcc
+           upload: 1
+         - distro: ubuntu_latest
+           architecture: aarch64
+           compiler: clang
+           upload: 0
+         - distro: ubuntu_devel
+           architecture: armv7
+           compiler: gcc
+           upload: 0
+         - distro: ubuntu_devel
+           architecture: armv7
+           compiler: clang
+           upload: 0
+         - distro: ubuntu_devel
+           architecture: aarch64
+           compiler: gcc
+           upload: 0
+         - distro: ubuntu_devel
+           architecture: aarch64
+           compiler: clang
+           upload: 0
     steps:
-    - uses: actions/download-artifact@v2
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v2
+    - name: Build
+      uses: uraimo/run-on-arch-action@v2
       with:
-        files: ./**/*
-        draft: false
-        prerelease: false
+        arch: ${{ matrix.architecture }}
+        distro: ${{ matrix.distro }}
+        githubToken: ${{ github.token }}
+        dockerRunArgs: |
+          -v "${{ github.workspace }}:/sources"
+        env: |
+          GITHUB_REF: "${{ github.ref }}"
+          GITHUB_SERVER_URL: "${{ github.server_url }}"
+          GITHUB_REPOSITORY: "${{ github.repository }}"
+          GITHUB_RUN_ID: "${{ github.run_id }}"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GIT_COMMIT_HASH: "${{ github.sha }}"
+          GIT_BRANCH_NAME: "${{ github.ref_name }}"
+          FILE_PASSWORD: ${{ secrets.FILE_PASSWORD }}
+          QTIFWVER: ${{ env.QTIFWVER }}
+          APPIMAGEVER: ${{ env.APPIMAGEVER }}
+          DISTRO: ${{ matrix.distro }}
+          ARCHITECTURE: ${{ matrix.architecture }}
+          COMPILER: ${{ matrix.compiler }}
+          NJOBS: ${{ env.NJOBS }}
+          UPLOAD: ${{ matrix.upload }}
+          DAILY_BUILD: 1
+        run: |
+          cd /sources
+          chmod +x ports/ci/linux-ubuntu/install_deps.sh
+          ./ports/ci/linux-ubuntu/install_deps.sh
+          chmod +x ports/ci/linux-ubuntu/build.sh
+          ./ports/ci/linux-ubuntu/build.sh
+          chmod +x ports/ci/linux-ubuntu/deploy.sh
+          ./ports/ci/linux-ubuntu/deploy.sh
+          chmod +x ports/ci/linux-ubuntu/compress.sh
+          ./ports/ci/linux-ubuntu/compress.sh
 
-  daily-release:
-    needs: build
+    - uses: actions/upload-artifact@v4
+      if: ${{ matrix.upload }}
+      with:
+        name: ubuntu-multiarch-${{ matrix.architecture }}
+        overwrite: true
+        path: webcamoid-packages-*.7z
+
+  upload-builds:
+    needs: [build, ubuntu-multiarch]
     if: github.event_name == 'schedule' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v2
-    - name: Create Daily Release
-      id: create_daily_release
+    - name: Upload Builds
       uses: softprops/action-gh-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
       with:
         files: ./**/*
-        name: Daily Build
+        name: Webcamoid Daily Build
         tag_name: daily-build
         body: |
           This is an automated daily build of the Webcamoid project.
           Built from commit: ${{ github.sha }}
           
-          Note: This build is automatically updated daily. The commit information in the tag may not reflect the exact state of this build.
+          Note: This build is automatically updated daily. The commit information may not reflect the exact state of this build.
         prerelease: true
         repository: checksumdev/webcamoid-builds
