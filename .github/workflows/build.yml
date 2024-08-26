@@ -118,22 +118,22 @@ jobs:
           mingw-w64-${{ matrix.target_arch }}-vlc
 
     - name: Install dependencies
+      shell: bash
       run: |
         chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
         ./ports/ci/${{ matrix.script }}/install_deps.sh
-      shell: ${{ matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash' }}
 
     - name: Build
+      shell: bash
       run: |
         chmod +x ports/ci/${{ matrix.script }}/build.sh
         ./ports/ci/${{ matrix.script }}/build.sh
-      shell: ${{ matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash' }}
 
     - name: Deploy
+      shell: bash
       run: |
         chmod +x ports/ci/${{ matrix.script }}/deploy.sh
         ./ports/ci/${{ matrix.script }}/deploy.sh
-      shell: ${{ matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash' }}
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
@@ -178,4 +178,4 @@ jobs:
           
           Note: This build is automatically updated daily. The commit information in the tag may not reflect the exact state of this build.
         prerelease: true
-        repository: webcamoid/WebcamoidPrivate
+        repository: checksumdev/webcamoid-builds
