@@ -104,15 +104,13 @@ jobs:
 
     - name: Install dependencies (Windows MSVC)
       if: matrix.script == 'windows-msvc'
-      run: ./ports/ci/${{ matrix.script }}/install_deps.bat
+      run: .\ports\ci\${{ matrix.script }}\install_deps.bat
       shell: cmd
 
     - name: Install dependencies (Windows MSYS)
       if: matrix.script == 'windows-msys'
-      run: |
-        chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
-        ./ports/ci/${{ matrix.script }}/install_deps.sh
-      shell: msys2 {0}
+      run: .\ports\ci\${{ matrix.script }}\install_deps.bat
+      shell: cmd
 
     - name: Install dependencies (Other)
       if: matrix.script != 'windows-msvc' && matrix.script != 'windows-msys'
@@ -123,7 +121,7 @@ jobs:
 
     - name: Build (Windows MSVC)
       if: matrix.script == 'windows-msvc'
-      run: ./ports/ci/${{ matrix.script }}/build.bat
+      run: .\ports\ci\${{ matrix.script }}\build.bat
       shell: cmd
 
     - name: Build (Windows MSYS)
@@ -142,7 +140,7 @@ jobs:
 
     - name: Deploy (Windows MSVC)
       if: matrix.script == 'windows-msvc'
-      run: ./ports/ci/${{ matrix.script }}/deploy.bat
+      run: .\ports\ci\${{ matrix.script }}\deploy.bat
       shell: cmd
 
     - name: Deploy (Windows MSYS)
