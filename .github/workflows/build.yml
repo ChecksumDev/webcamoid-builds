@@ -7,12 +7,7 @@ on:
     - cron: '0 0 * * *'
 
 env:
-  QTVER_ANDROID: 6.7.2
-  SDKVER: 11076708
-  NDKVER: r27
-  ANDROID_BUILD_TOOLS_VERSION: 34.0.0
-  ANDROID_MINIMUM_PLATFORM: 24
-  ANDROID_TARGET_PLATFORM: 34
+  QTVER: 6.7.2
   NJOBS: 4
   QTIFWVER: 4.8.0
   APPIMAGEVER: continuous
@@ -36,18 +31,8 @@ jobs:
             script: linux-ubuntu
           - os: ubuntu-latest
             name: Ubuntu x86_64
-            dockerimg: amd64/ubuntu:lunar
-            compiler: clang
-            script: linux-ubuntu
-          - os: ubuntu-latest
-            name: Ubuntu x86_64
             dockerimg: amd64/ubuntu:rolling
             compiler: gcc
-            script: linux-ubuntu
-          - os: ubuntu-latest
-            name: Ubuntu x86_64
-            dockerimg: amd64/ubuntu:rolling
-            compiler: clang
             script: linux-ubuntu
           # macOS
           - os: macos-14
@@ -68,11 +53,6 @@ jobs:
             name: Windows MSYS
             target_arch: x86_64
             compiler: gcc
-            script: windows-msys
-          - os: windows-latest
-            name: Windows MSYS
-            target_arch: x86_64
-            compiler: clang
             script: windows-msys
 
     runs-on: ${{ matrix.os }}
@@ -106,63 +86,49 @@ jobs:
           mingw-w64-${{ matrix.target_arch }}-gst-plugins-good
           mingw-w64-${{ matrix.target_arch }}-portaudio
 
-    - name: Install dependencies (Windows MSVC)
-      if: matrix.script == 'windows-msvc'
-      run: .\ports\ci\${{ matrix.script }}\install_deps.bat
-      shell: cmd
-
-    - name: Install dependencies (Other)
-      if: matrix.script != 'windows-msvc' && matrix.script != 'windows-msys'
+    - name: Install dependencies
       run: |
-        chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
-        ./ports/ci/${{ matrix.script }}/install_deps.sh
-      shell: bash
+        if [ "${{ matrix.script }}" = "windows-msvc" ]; then
+          ./ports/ci/${{ matrix.script }}/install_deps.bat
+        else
+          chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
+          ./ports/ci/${{ matrix.script }}/install_deps.sh
+        fi
+      shell: ${{ matrix.script == 'windows-msvc' && 'cmd' || 'bash' }}
 
-    - name: Build (Windows MSVC)
-      if: matrix.script == 'windows-msvc'
-      run: .\ports\ci\${{ matrix.script }}\build.bat
-      shell: cmd
-
-    - name: Build (Windows MSYS)
-      if: matrix.script == 'windows-msys'
+    - name: Build
       run: |
-        chmod +x ports/ci/${{ matrix.script }}/build.sh
-        ./ports/ci/${{ matrix.script }}/build.sh
-      shell: msys2 {0}
+        if [ "${{ matrix.script }}" = "windows-msvc" ]; then
+          ./ports/ci/${{ matrix.script }}/build.bat
+        elif [ "${{ matrix.script }}" = "windows-msys" ]; then
+          chmod +x ports/ci/${{ matrix.script }}/build.sh
+          ./ports/ci/${{ matrix.script }}/build.sh
+        else
+          chmod +x ports/ci/${{ matrix.script }}/build.sh
+          ./ports/ci/${{ matrix.script }}/build.sh
+        fi
+      shell: ${{ matrix.script == 'windows-msvc' && 'cmd' || (matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash') }}
       env:
         TARGET_ARCH: ${{ matrix.target_arch }}
         COMPILER: ${{ matrix.compiler }}
-        DAILY_BUILD: 1
+        DAILY_BUILD: ${{ !startsWith(github.ref, 'refs/tags/') && '1' || '0' }}
 
-    - name: Build (Other)
-      if: matrix.script != 'windows-msvc' && matrix.script != 'windows-msys'
+    - name: Deploy
       run: |
-        chmod +x ports/ci/${{ matrix.script }}/build.sh
-        ./ports/ci/${{ matrix.script }}/build.sh
-      shell: bash
-
-    - name: Deploy (Windows MSVC)
-      if: matrix.script == 'windows-msvc'
-      run: .\ports\ci\${{ matrix.script }}\deploy.bat
-      shell: cmd
-
-    - name: Deploy (Windows MSYS)
-      if: matrix.script == 'windows-msys'
-      run: |
-        chmod +x ports/ci/${{ matrix.script }}/deploy.sh
-        ./ports/ci/${{ matrix.script }}/deploy.sh
-      shell: msys2 {0}
+        if [ "${{ matrix.script }}" = "windows-msvc" ]; then
+          ./ports/ci/${{ matrix.script }}/deploy.bat
+        elif [ "${{ matrix.script }}" = "windows-msys" ]; then
+          chmod +x ports/ci/${{ matrix.script }}/deploy.sh
+          ./ports/ci/${{ matrix.script }}/deploy.sh
+        else
+          chmod +x ports/ci/${{ matrix.script }}/deploy.sh
+          ./ports/ci/${{ matrix.script }}/deploy.sh
+        fi
+      shell: ${{ matrix.script == 'windows-msvc' && 'cmd' || (matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash') }}
       env:
         TARGET_ARCH: ${{ matrix.target_arch }}
         COMPILER: ${{ matrix.compiler }}
-        DAILY_BUILD: 1
-
-    - name: Deploy (Other)
-      if: matrix.script != 'windows-msvc' && matrix.script != 'windows-msys'
-      run: |
-        chmod +x ports/ci/${{ matrix.script }}/deploy.sh
-        ./ports/ci/${{ matrix.script }}/deploy.sh
-      shell: bash
+        DAILY_BUILD: ${{ !startsWith(github.ref, 'refs/tags/') && '1' || '0' }}
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
@@ -170,84 +136,9 @@ jobs:
         name: webcamoid-${{ matrix.name }}
         path: webcamoid-packages/**/*
 
-  ubuntu-multiarch:
-    name: Ubuntu Multiarch
-    runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 10
-      fail-fast: false
-      matrix:
-       include:
-         - distro: ubuntu_latest
-           architecture: armv7
-           compiler: gcc
-         - distro: ubuntu_latest
-           architecture: armv7
-           compiler: clang
-         - distro: ubuntu_latest
-           architecture: aarch64
-           compiler: gcc
-         - distro: ubuntu_latest
-           architecture: aarch64
-           compiler: clang
-         - distro: ubuntu_devel
-           architecture: armv7
-           compiler: gcc
-         - distro: ubuntu_devel
-           architecture: armv7
-           compiler: clang
-         - distro: ubuntu_devel
-           architecture: aarch64
-           compiler: gcc
-         - distro: ubuntu_devel
-           architecture: aarch64
-           compiler: clang
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build
-      uses: uraimo/run-on-arch-action@v2
-      with:
-        arch: ${{ matrix.architecture }}
-        distro: ${{ matrix.distro }}
-        githubToken: ${{ github.token }}
-        dockerRunArgs: |
-          -v "${{ github.workspace }}:/sources"
-        env: |
-          GITHUB_REF: "${{ github.ref }}"
-          GITHUB_SERVER_URL: "${{ github.server_url }}"
-          GITHUB_REPOSITORY: "${{ github.repository }}"
-          GITHUB_RUN_ID: "${{ github.run_id }}"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GIT_COMMIT_HASH: "${{ github.sha }}"
-          GIT_BRANCH_NAME: "${{ github.ref_name }}"
-          FILE_PASSWORD: ${{ secrets.FILE_PASSWORD }}
-          QTIFWVER: ${{ env.QTIFWVER }}
-          APPIMAGEVER: ${{ env.APPIMAGEVER }}
-          DISTRO: ${{ matrix.distro }}
-          ARCHITECTURE: ${{ matrix.architecture }}
-          COMPILER: ${{ matrix.compiler }}
-          NJOBS: ${{ env.NJOBS }}
-          DAILY_BUILD: 1
-        run: |
-          cd /sources
-          chmod +x ports/ci/linux-ubuntu/install_deps.sh
-          ./ports/ci/linux-ubuntu/install_deps.sh
-          chmod +x ports/ci/linux-ubuntu/build.sh
-          ./ports/ci/linux-ubuntu/build.sh
-          chmod +x ports/ci/linux-ubuntu/deploy.sh
-          ./ports/ci/linux-ubuntu/deploy.sh
-          chmod +x ports/ci/linux-ubuntu/compress.sh
-          ./ports/ci/linux-ubuntu/compress.sh
-
-    - uses: actions/upload-artifact@v4
-      with:
-        name: ubuntu-multiarch-${{ matrix.architecture }}
-        overwrite: true
-        path: webcamoid-packages-*.7z
-
   upload-builds:
-    needs: [build, ubuntu-multiarch]
-    if: github.event_name == 'schedule' && github.ref == 'refs/heads/master'
+    needs: [build]
+    if: github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/download-artifact@v2
@@ -257,12 +148,12 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
       with:
         files: ./**/*
-        name: Webcamoid Daily Build
-        tag_name: daily-build
+        name: ${{ github.event_name == 'schedule' && 'Webcamoid Daily Build' || format('Webcamoid Build - {0}', github.sha) }}
+        tag_name: ${{ github.event_name == 'schedule' && 'daily-build' || format('build-{0}', github.sha) }}
         body: |
-          This is an automated daily build of the Webcamoid project.
+          This is an automated ${{ github.event_name == 'schedule' && 'daily' || 'push-triggered' }} build of the Webcamoid project.
           Built from commit: ${{ github.sha }}
           
-          Note: This build is automatically updated daily. The commit information may not reflect the exact state of this build.
+          Note: This build is automatically updated. The commit information may not reflect the exact state of this build.
         prerelease: true
         repository: checksumdev/webcamoid-builds
