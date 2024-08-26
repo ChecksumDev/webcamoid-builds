@@ -33,38 +33,31 @@ jobs:
             name: Ubuntu x86_64
             dockerimg: amd64/ubuntu:lunar
             compiler: gcc
-            upload: 1
             script: linux-ubuntu
           - os: ubuntu-latest
             name: Ubuntu x86_64
             dockerimg: amd64/ubuntu:lunar
             compiler: clang
-            upload: 0
             script: linux-ubuntu
           - os: ubuntu-latest
             name: Ubuntu x86_64
             dockerimg: amd64/ubuntu:rolling
             compiler: gcc
-            upload: 0
             script: linux-ubuntu
           - os: ubuntu-latest
             name: Ubuntu x86_64
             dockerimg: amd64/ubuntu:rolling
             compiler: clang
-            upload: 0
             script: linux-ubuntu
           # macOS
           - os: macos-14
             name: macOS
-            upload: 1
             script: mac
           - os: macos-13
             name: macOS
-            upload: 0
             script: mac
           - os: macos-12
             name: macOS
-            upload: 1
             script: mac
           # Windows MSVC
           - os: windows-latest
@@ -75,13 +68,11 @@ jobs:
             name: Windows MSYS
             target_arch: x86_64
             compiler: gcc
-            upload: 1
             script: windows-msys
           - os: windows-latest
             name: Windows MSYS
             target_arch: x86_64
             compiler: clang
-            upload: 0
             script: windows-msys
 
     runs-on: ${{ matrix.os }}
@@ -185,35 +176,27 @@ jobs:
          - distro: ubuntu_latest
            architecture: armv7
            compiler: gcc
-           upload: 1
          - distro: ubuntu_latest
            architecture: armv7
            compiler: clang
-           upload: 0
          - distro: ubuntu_latest
            architecture: aarch64
            compiler: gcc
-           upload: 1
          - distro: ubuntu_latest
            architecture: aarch64
            compiler: clang
-           upload: 0
          - distro: ubuntu_devel
            architecture: armv7
            compiler: gcc
-           upload: 0
          - distro: ubuntu_devel
            architecture: armv7
            compiler: clang
-           upload: 0
          - distro: ubuntu_devel
            architecture: aarch64
            compiler: gcc
-           upload: 0
          - distro: ubuntu_devel
            architecture: aarch64
            compiler: clang
-           upload: 0
     steps:
     - uses: actions/checkout@v2
     - name: Build
@@ -239,7 +222,6 @@ jobs:
           ARCHITECTURE: ${{ matrix.architecture }}
           COMPILER: ${{ matrix.compiler }}
           NJOBS: ${{ env.NJOBS }}
-          UPLOAD: ${{ matrix.upload }}
           DAILY_BUILD: 1
         run: |
           cd /sources
@@ -253,7 +235,6 @@ jobs:
           ./ports/ci/linux-ubuntu/compress.sh
 
     - uses: actions/upload-artifact@v4
-      if: ${{ matrix.upload }}
       with:
         name: ubuntu-multiarch-${{ matrix.architecture }}
         overwrite: true
