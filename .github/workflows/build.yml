@@ -86,49 +86,62 @@ jobs:
           mingw-w64-${{ matrix.target_arch }}-gst-plugins-good
           mingw-w64-${{ matrix.target_arch }}-portaudio
 
-    - name: Install dependencies
-      run: |
-        if [ "${{ matrix.script }}" = "windows-msvc" ]; then
-          ./ports/ci/${{ matrix.script }}/install_deps.bat
-        else
-          chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
-          ./ports/ci/${{ matrix.script }}/install_deps.sh
-        fi
-      shell: ${{ matrix.script == 'windows-msvc' && 'cmd' || 'bash' }}
+    - name: Install dependencies (Windows MSVC)
+      if: matrix.script == 'windows-msvc'
+      run: ./ports/ci/${{ matrix.script }}/install_deps.bat
+      shell: cmd
 
-    - name: Build
+    - name: Install dependencies (Windows MSYS)
+      if: matrix.script == 'windows-msys'
       run: |
-        if [ "${{ matrix.script }}" = "windows-msvc" ]; then
-          ./ports/ci/${{ matrix.script }}/build.bat
-        elif [ "${{ matrix.script }}" = "windows-msys" ]; then
-          chmod +x ports/ci/${{ matrix.script }}/build.sh
-          ./ports/ci/${{ matrix.script }}/build.sh
-        else
-          chmod +x ports/ci/${{ matrix.script }}/build.sh
-          ./ports/ci/${{ matrix.script }}/build.sh
-        fi
-      shell: ${{ matrix.script == 'windows-msvc' && 'cmd' || (matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash') }}
-      env:
-        TARGET_ARCH: ${{ matrix.target_arch }}
-        COMPILER: ${{ matrix.compiler }}
-        DAILY_BUILD: ${{ !startsWith(github.ref, 'refs/tags/') && '1' || '0' }}
+        chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
+        ./ports/ci/${{ matrix.script }}/install_deps.sh
+      shell: msys2 {0}
 
-    - name: Deploy
+    - name: Install dependencies (Others)
+      if: matrix.script != 'windows-msvc' && matrix.script != 'windows-msys'
       run: |
-        if [ "${{ matrix.script }}" = "windows-msvc" ]; then
-          ./ports/ci/${{ matrix.script }}/deploy.bat
-        elif [ "${{ matrix.script }}" = "windows-msys" ]; then
-          chmod +x ports/ci/${{ matrix.script }}/deploy.sh
-          ./ports/ci/${{ matrix.script }}/deploy.sh
-        else
-          chmod +x ports/ci/${{ matrix.script }}/deploy.sh
-          ./ports/ci/${{ matrix.script }}/deploy.sh
-        fi
-      shell: ${{ matrix.script == 'windows-msvc' && 'cmd' || (matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash') }}
-      env:
-        TARGET_ARCH: ${{ matrix.target_arch }}
-        COMPILER: ${{ matrix.compiler }}
-        DAILY_BUILD: ${{ !startsWith(github.ref, 'refs/tags/') && '1' || '0' }}
+        chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
+        ./ports/ci/${{ matrix.script }}/install_deps.sh
+      shell: bash
+
+    - name: Build (Windows MSVC)
+      if: matrix.script == 'windows-msvc'
+      run: ./ports/ci/${{ matrix.script }}/build.bat
+      shell: cmd
+
+    - name: Build (Windows MSYS)
+      if: matrix.script == 'windows-msys'
+      run: |
+        chmod +x ports/ci/${{ matrix.script }}/build.sh
+        ./ports/ci/${{ matrix.script }}/build.sh
+      shell: msys2 {0}
+
+    - name: Build (Others)
+      if: matrix.script != 'windows-msvc' && matrix.script != 'windows-msys'
+      run: |
+        chmod +x ports/ci/${{ matrix.script }}/build.sh
+        ./ports/ci/${{ matrix.script }}/build.sh
+      shell: bash
+
+    - name: Deploy (Windows MSVC)
+      if: matrix.script == 'windows-msvc'
+      run: ./ports/ci/${{ matrix.script }}/deploy.bat
+      shell: cmd
+
+    - name: Deploy (Windows MSYS)
+      if: matrix.script == 'windows-msys'
+      run: |
+        chmod +x ports/ci/${{ matrix.script }}/deploy.sh
+        ./ports/ci/${{ matrix.script }}/deploy.sh
+      shell: msys2 {0}
+
+    - name: Deploy (Others)
+      if: matrix.script != 'windows-msvc' && matrix.script != 'windows-msys'
+      run: |
+        chmod +x ports/ci/${{ matrix.script }}/deploy.sh
+        ./ports/ci/${{ matrix.script }}/deploy.sh
+      shell: bash
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
