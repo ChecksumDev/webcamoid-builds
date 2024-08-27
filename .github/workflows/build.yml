@@ -2,7 +2,9 @@ name: Webcamoid CI
 
 on:
   push:
+    branches: [main, develop]
   pull_request:
+    branches: [main, develop]
   schedule:
     - cron: '0 0 * * *'
 
@@ -23,32 +25,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Ubuntu x86_64
-          - os: ubuntu-latest
-            name: Ubuntu x86_64
-            dockerimg: amd64/ubuntu:lunar
-            compiler: gcc
-            script: linux-ubuntu
           - os: ubuntu-latest
             name: Ubuntu x86_64
             dockerimg: amd64/ubuntu:rolling
             compiler: gcc
             script: linux-ubuntu
-          # macOS
           - os: macos-14
             name: macOS
             script: mac
-          - os: macos-13
-            name: macOS
-            script: mac
-          - os: macos-12
-            name: macOS
-            script: mac
-          # Windows MSVC
           - os: windows-latest
             name: Windows MSVC
             script: windows-msvc
-          # Windows MSYS
           - os: windows-latest
             name: Windows MSYS
             target_arch: x86_64
@@ -56,9 +43,9 @@ jobs:
             script: windows-msys
 
     runs-on: ${{ matrix.os }}
-    
+
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
 
     - name: Set up MSYS2 (Windows MSYS only)
       uses: msys2/setup-msys2@v2
@@ -66,106 +53,46 @@ jobs:
       with:
         update: true
         install: >-
-          ccache
-          clang
-          cmake
-          git
-          make
-          pkgconf
-          python3
-          mingw-w64-${{ matrix.target_arch }}-binutils
-          mingw-w64-${{ matrix.target_arch }}-ccache
-          mingw-w64-${{ matrix.target_arch }}-clang
-          mingw-w64-${{ matrix.target_arch }}-cmake
-          mingw-w64-${{ matrix.target_arch }}-ffmpeg
-          mingw-w64-${{ matrix.target_arch }}-pkgconf
-          mingw-w64-${{ matrix.target_arch }}-qt6
-          mingw-w64-${{ matrix.target_arch }}-vlc
-          mingw-w64-${{ matrix.target_arch }}-SDL2
-          mingw-w64-${{ matrix.target_arch }}-gst-plugins-base
-          mingw-w64-${{ matrix.target_arch }}-gst-plugins-good
-          mingw-w64-${{ matrix.target_arch }}-portaudio
+          ccache clang cmake git make pkgconf python3
+          mingw-w64-${{ matrix.target_arch }}-{binutils,ccache,clang,cmake,ffmpeg,pkgconf,qt6,vlc,SDL2,gst-plugins-base,gst-plugins-good,portaudio}
 
-    - name: Install dependencies (Windows MSVC)
-      if: matrix.script == 'windows-msvc'
-      run: ./ports/ci/${{ matrix.script }}/install_deps.bat
-      shell: cmd
-
-    - name: Install dependencies (Windows MSYS)
-      if: matrix.script == 'windows-msys'
-      run: |
-        echo "Skipping install_deps.sh for Windows MSYS as it doesn't exist"
-      shell: bash
-
-    - name: Install dependencies (Others)
-      if: matrix.script != 'windows-msvc' && matrix.script != 'windows-msys'
+    - name: Install dependencies
       run: |
         chmod +x ports/ci/${{ matrix.script }}/install_deps.sh
         ./ports/ci/${{ matrix.script }}/install_deps.sh
-      shell: bash
+      shell: ${{ matrix.script == 'windows-msvc' && 'cmd' || 'bash' }}
 
-    - name: Build (Windows MSVC)
-      if: matrix.script == 'windows-msvc'
-      run: ./ports/ci/${{ matrix.script }}/build.bat
-      shell: cmd
-
-    - name: Build (Windows MSYS)
-      if: matrix.script == 'windows-msys'
+    - name: Build
       run: |
-        chmod +x ports/ci/${{ matrix.script }}/build.sh
-        ./ports/ci/${{ matrix.script }}/build.sh
-      shell: msys2 {0}
+        ${{ matrix.script == 'windows-msvc' && './ports/ci/${{ matrix.script }}/build.bat' || 'chmod +x ports/ci/${{ matrix.script }}/build.sh && ./ports/ci/${{ matrix.script }}/build.sh' }}
+      shell: ${{ matrix.script == 'windows-msvc' && 'cmd' || (matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash') }}
 
-    - name: Build (Others)
-      if: matrix.script != 'windows-msvc' && matrix.script != 'windows-msys'
+    - name: Deploy
       run: |
-        chmod +x ports/ci/${{ matrix.script }}/build.sh
-        ./ports/ci/${{ matrix.script }}/build.sh
-      shell: bash
-
-    - name: Deploy (Windows MSVC)
-      if: matrix.script == 'windows-msvc'
-      run: ./ports/ci/${{ matrix.script }}/deploy.bat
-      shell: cmd
-
-    - name: Deploy (Windows MSYS)
-      if: matrix.script == 'windows-msys'
-      run: |
-        chmod +x ports/ci/${{ matrix.script }}/deploy.sh
-        ./ports/ci/${{ matrix.script }}/deploy.sh
-      shell: msys2 {0}
-
-    - name: Deploy (Others)
-      if: matrix.script != 'windows-msvc' && matrix.script != 'windows-msys'
-      run: |
-        chmod +x ports/ci/${{ matrix.script }}/deploy.sh
-        ./ports/ci/${{ matrix.script }}/deploy.sh
-      shell: bash
+        ${{ matrix.script == 'windows-msvc' && './ports/ci/${{ matrix.script }}/deploy.bat' || 'chmod +x ports/ci/${{ matrix.script }}/deploy.sh && ./ports/ci/${{ matrix.script }}/deploy.sh' }}
+      shell: ${{ matrix.script == 'windows-msvc' && 'cmd' || (matrix.script == 'windows-msys' && 'msys2 {0}' || 'bash') }}
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v3
       with:
         name: webcamoid-${{ matrix.name }}
         path: webcamoid-packages/**/*
 
-  upload-builds:
+  release:
     needs: [build]
-    if: github.event_name == 'push' || github.event_name == 'schedule'
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    
     steps:
-    - uses: actions/download-artifact@v2
-    - name: Upload Builds
-      uses: softprops/action-gh-release@v1
+    - uses: actions/checkout@v3
+    - uses: actions/download-artifact@v3
+
+    - name: Create Release
       env:
-        GITHUB_TOKEN: ${{ secrets.UPLOAD_TOKEN }}
-      with:
-        files: ./**/*
-        name: ${{ github.event_name == 'schedule' && 'Webcamoid Daily Build' || format('Webcamoid Build - {0}', github.sha) }}
-        tag_name: ${{ github.event_name == 'schedule' && 'daily-build' || format('build-{0}', github.sha) }}
-        body: |
-          This is an automated ${{ github.event_name == 'schedule' && 'daily' || 'push-triggered' }} build of the Webcamoid project.
-          Built from commit: ${{ github.sha }}
-          
-          Note: This build is automatically updated. The commit information may not reflect the exact state of this build.
-        prerelease: true
-        repository: checksumdev/webcamoid-builds
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create "build-${GITHUB_SHA::8}" \
+          --title "Webcamoid Build - ${GITHUB_SHA::8}" \
+          --notes "Automated build from commit ${GITHUB_SHA}. This is a development build and may not be stable." \
+          --prerelease \
+          webcamoid-*/**/*
